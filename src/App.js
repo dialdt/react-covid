@@ -85,7 +85,7 @@ function App() {
         {({ data, err, isLoading }) => {
           if (isLoading) return (
             <div class="loading">
-              <p>Loading...</p>
+              <img src={"https://raw.githubusercontent.com/SamHerbert/SVG-Loaders/5deed925369e57e9c58ba576ce303466984db501/svg-loaders/bars.svg"} />
             </div>
           )
           if (err) return `Something went wrong: ${err.message}`
