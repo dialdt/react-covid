@@ -1,9 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@=100;200;400;900&display=swap');
+
 html {
   height: 100%;
+  background-color: #2c3e50 !important;
 }
 
 body {
   min-height: 100%;
+  background-color: #2c3e50 !important;
+  font-family: Lato, serif;
 }
 
 .apexcharts-canvas {
@@ -19,4 +24,36 @@ body {
 
 input[type='radio'] {
   visibility: hidden;
+}
+
+.headline,
+.title {
+  color: #fff;
+  text-align: center;
+}
+
+.title {
+  padding-bottom: 30px;
+  font-size: 2rem;
+}
+
+.App {
+  padding-top: 30px;
+}
+
+button {
+  background-color: #ff7675 !important;
+  border: 1px solid #ff7675 !important;
+}
+
+p,
+small {
+  font-weight: 200;
+  font-size: 0.9rem
+}
+
+#text-input {
+  font-family: Lato, serif !important;
+  font-weight: 200 !important;
+  font-size: 0.5rem !important;
 }
