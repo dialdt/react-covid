@@ -1,16 +1,15 @@
-import React, { useState, Component } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import Async from 'react-async';
 import Chart from "react-apexcharts"
 import 'bootstrap/dist/css/bootstrap.min.css';
 import styled from 'styled-components';
-import {Container, Row, Col, ButtonGroup, ToggleButton, Button, InputGroup, FormControl, DropdownButton, Dropdown} from 'react-bootstrap';
+import {Container, Row, Col, Button, InputGroup, FormControl, DropdownButton, Dropdown} from 'react-bootstrap';
 const axios = require('axios').default;
 
 
 const casesApiUrl = 'https://c19downloads.azureedge.net/downloads/json/coronavirus-cases_latest.json';
-const deathsApiUrl = 'https://c19downloads.azureedge.net/downloads/json/coronavirus-deaths_latest.json';
-let countryData= [];
+//const deathsApiUrl = 'https://c19downloads.azureedge.net/downloads/json/coronavirus-deaths_latest.json';
 
 const covidData = ({place, lvl}) => 
   axios.get(casesApiUrl)
@@ -31,7 +30,7 @@ const covidData = ({place, lvl}) =>
         yesterday
       ]
     }).catch(function(error) {
-      console.log(error);
+      return '<div class="loading">Error retrieving data :-((</div>'
     })
 
 const Main = styled.div`
@@ -43,7 +42,7 @@ function App() {
   const [level, setLevel] = useState('ltlas');
 
   const getHighestRates = (arr, n) => {
-    let sortedArr = arr.sort((a, b) => a.dailyTotalLabConfirmedCasesRate === b.dailyTotalLabConfirmedCasesRate ? 0 : a.dailyTotalLabConfirmedCasesRate < b.dailyTotalLabConfirmedCasesRate ? 1 : -1)
+    let sortedArr = arr.sort((a, b) => a.dailyTotalLabConfirmedCasesRate === b.dailyTotalLabConfirmedCasesRate ? 0 : a.dailyTotalLabConfirmedCasesRate < b.dailyTotalLabConfirmedCasesRate ? -1 : 1)
     return sortedArr.slice(0, n)
   }
 
@@ -67,6 +66,58 @@ function App() {
       }
       start++
       end = start + n;
+    }
+  }
+
+  // Get the weekly rate of infection for an area - takes an array and a number representing the number of days to aggregate
+  // Returns an array of aggregated data
+  const getWeeklyRate = (arr, n) => {
+    let rates = [];
+    // Start at end of array and work back (end - 7)
+    let start = arr.length - 7;
+    let end = start + n;
+  
+    for (let i = 0; i <  arr.length; i++) {
+      let newArr = arr.slice(start, end);
+      if(newArr.length > 0) {
+        rates.unshift(newArr.reduce((a, b) => a + b));
+      } else {
+        return rates;
+      }
+      start -= n
+      end = start + n;
+    }
+  }
+
+  // Estimate the population of an area by reverse engineering
+  // Takes the current rate per 100000 residents and the total number of cases.  Returns a number
+  const getPopulation = (rate, cases)  => {
+    let a = rate / 100000;
+    return cases / a;
+  }
+
+  // Get the daily infection rates per 100000 residents.
+  // Takes number of cases and estimated population and returns a float  
+  const getDailyRates = (cases, population) => {
+    return Math.round((cases / population) * 100000);
+  }
+
+  // Compare the infection rate per 100000 residents for this week vs last week
+  // Takes an array and returns an integer
+  const getChange = (arr) => {
+    //
+    let a = 1;
+    let b = 2;
+    let newArr = [0, 0];
+    for (let i = 0; i < arr.length; i++) {
+      if(b < arr.length) {
+        let change = Math.round((arr[a] === 0 && arr[b] === 0 ? 0 : arr[a] === 0 && arr[b] > 0 ? 1 : (arr[b] - arr[a]) / arr[a]) * 100)
+        newArr.push(change)
+        a++
+        b++
+      } else {
+        return newArr
+      }
     }
   }
 
@@ -127,7 +178,7 @@ function App() {
         {({ data, err, isLoading }) => {
           if (isLoading) return (
             <div class="loading">
-              <img src={"https://raw.githubusercontent.com/SamHerbert/SVG-Loaders/5deed925369e57e9c58ba576ce303466984db501/svg-loaders/bars.svg"} />
+              <img src={"https://raw.githubusercontent.com/SamHerbert/SVG-Loaders/5deed925369e57e9c58ba576ce303466984db501/svg-loaders/bars.svg"} alt=""/>
             </div>
           )
           if (err) return (
@@ -143,26 +194,26 @@ function App() {
                 </div>
               )
             } else {
-            const topTenRates = getHighestRates(data[1], 10);
-            const topTenCases = getHighestCases(data[1], 10);
+            const topTenRates = getHighestRates(data[1], 15);
+            const topTenCases = getHighestCases(data[1], 15);
             const topTenRatesData = [];
             const topTenRatesX = [];
             const topTenCasesData = [];
             const topTenCasesX = [];
+            const estimatedPopulation = getPopulation(data[0][0].dailyTotalLabConfirmedCasesRate, 
+                                                    data[0][0].totalLabConfirmedCases)
+
 
             for(let item in topTenCases) {
-              console.log(item)
               topTenCasesData.unshift(topTenCases[item].dailyLabConfirmedCases);
               topTenCasesX.unshift(topTenCases[item].areaName);
             }
 
             for(let item in topTenRates) {
-              console.log(item)
               topTenRatesData.unshift(topTenCases[item].dailyTotalLabConfirmedCasesRate);
               topTenRatesX.unshift(topTenCases[item].areaName);
             }
               
-            console.log(topTenCases, topTenCasesData, topTenCasesX)
             //Graph options
             let casesOptions = {
               chart: {
@@ -175,7 +226,7 @@ function App() {
                 }
               },
               series: [{
-                name: 'sales',
+                name: 'Cases',
                 data: topTenCasesData
               }],
               xaxis: {
@@ -309,14 +360,19 @@ function App() {
             let chartData = [];
             let chartRateData = [];
             let chartAxis = [];
-            let dailyCases = data[0][0].dailyLabConfirmedCases;
-            let laObj = {}
             data[0].map(item => {
               chartData.unshift(item.dailyLabConfirmedCases);
               chartRateData.unshift(item.dailyTotalLabConfirmedCasesRate);
               chartAxis.unshift(item.specimenDate);
+              return 0;
             });
             let rollingAvg = getRollingAvg(chartData, 7);
+            let dailyRate = []
+            chartData.map(item => 
+              dailyRate.push(getDailyRates(item, estimatedPopulation))
+            );
+            let weeklyRate = getWeeklyRate(dailyRate, 7);
+            let weeklyRateChange = getChange(weeklyRate);
             let options = {
               series: [{
                 name: 'Daily cases',
@@ -327,14 +383,9 @@ function App() {
                   opacity: [1, 1]
                 }
               }, {
-                name: 'Cases per 100,000 residents',
-                type: 'line',
-                data: chartRateData,
-              },
-              {
                 name: '7-day rolling average',
                 type: 'area',
-                data: rollingAvg
+                data: rollingAvg,
               }
               ],
                 chart: {
@@ -351,7 +402,7 @@ function App() {
               },
               fill: {
                 type: 'solid',
-                opacity: [0.8, 1, 0.5]
+                opacity: [1, 0.35]
               },
               xaxis: {
                 categories: chartAxis,
@@ -399,7 +450,7 @@ function App() {
                     }
                   },
                   title: {
-                    text: "Daily Rate",
+                    text: "7-Day Rolling Average",
                     style: {
                       color: '#00E396',
                     }
@@ -425,6 +476,106 @@ function App() {
                 }
               }
               };
+
+              let ratesChangeOptions = {
+                series: [{
+                  name: 'Weekly Rate',
+                  type: 'bar',
+                  data: weeklyRate,
+                  fill: {
+                    type: 'solid',
+                    opacity: [1, 1]
+                  }
+                }, {
+                  name: 'Weekly Rate Change (%)',
+                  type: 'area',
+                  data: weeklyRateChange,
+                }
+                ],
+                  chart: {
+                  height: 400,
+                  type: 'line',
+                  stacked: false
+                },
+                dataLabels: {
+                  enabled: false,
+                },
+                stroke: {
+                  width: [0, 2],
+                  curve: 'smooth'
+                },
+                fill: {
+                  type: 'solid',
+                  opacity: [0.5, 0.8]
+                },
+                yaxis: [
+                  {
+                    axisTicks: {
+                      show: true,
+                    },
+                    axisBorder: {
+                      show: true,
+                      color: '#008FFB'
+                    },
+                    labels: {
+                      style: {
+                        colors: '#008FFB',
+                      }
+                    },
+                    title: {
+                      text: "Weekly Rate",
+                      style: {
+                        color: '#008FFB',
+                      }
+                    },
+                    tooltip: {
+                      enabled: true
+                    }
+                  },
+                  {
+                    seriesName: 'Weekly Rate Change (%)',
+                    opposite: true,
+                    axisTicks: {
+                      show: true,
+                    },
+                    axisBorder: {
+                      show: true,
+                      color: '#00E396'
+                    },
+                    labels: {
+                      style: {
+                        colors: '#00E396',
+                      }
+                    },
+                    title: {
+                      text: "Weekly Rate Change (%)",
+                      style: {
+                        color: '#00E396',
+                      }
+                    },
+                  },
+                ],
+                tooltip: {
+                  fixed: {
+                    enabled: true,
+                    position: 'topLeft', // topRight, topLeft, bottomRight, bottomLeft
+                    offsetY: 30,
+                    offsetX: 60
+                  },
+                  style: {
+                    colors: ['#000']
+                  }
+                },
+                legend: {
+                  horizontalAlign: 'left',
+                  offsetX: 40,
+                  labels: {
+                    colors: ['#fff']
+                  }
+                }
+                };
+  
+  
       
             return (
               <>
@@ -433,13 +584,22 @@ function App() {
                   <Col md={{span: 6, offset: 3}}>
                   <div class="headline">
                     <p>The current infection rate for {data[0][0].areaName} is <strong>{data[0][0].dailyTotalLabConfirmedCasesRate} per 100,000 residents</strong>
+                    <p>There are {data[0][0].totalLabConfirmedCases} cases reported for {data[0][0].areaName} out of an estimated population of {Math.round(estimatedPopulation/100) * 100}</p>
                     </p>
-                    <small>Data presented for the period {data[0][data.length -1].specimenDate} to {data[0][0].specimenDate} from <a href="https://coronavirus.data.gov.uk/" target="_blank">source</a></small>
+                    <small>Data presented for the period {data[0][data.length -1].specimenDate} to {data[0][0].specimenDate} from <a href="https://coronavirus.data.gov.uk/" target="_blank" rel="noopener noreferrer">source</a></small>
                   </div>
                   </Col>
                   <Chart 
                     options={options}
                     series={options.series}
+                    width='90%'
+                    height='400px'
+                  >
+                  </Chart>
+                  <Chart 
+                    options={ratesChangeOptions}
+                    series={ratesChangeOptions.series}
+                    type='area'
                     width='90%'
                     height='400px'
                   >
